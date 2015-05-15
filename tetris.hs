@@ -40,14 +40,20 @@ type Pos = (Int, Int)
 
 -- テトリミノデータ
 data TetriMino = TetriMino {
-    getMinoBlock    :: Block,
-    getMinoPos      :: Pos,
-    getMinoShape    :: [Pos]
+    getMinoBlock        :: Block,
+    getMinoPos          :: Pos,
+    getMinoShape        :: [Pos],
+    getMinoRotate       :: Int,
+    getMinoRotateMax    :: Int
 }deriving Show
 
 
+-- テトリミノの移動方向種別
+data Move = NONE | LEFT | RIGHT | UP | DOWN deriving (Show, Eq)
+
+
 -- I型テトリミノ
-i_Mino = TetriMino I (5, 2) [(0,0),(0,-1),(0,-2),(0,1)]
+i_Mino = TetriMino I (5, 2) [(0,0),(0,-1),(0,-2),(0,1)] 0 2
 
 
 
@@ -58,77 +64,91 @@ replace f e p = xs ++ [e] ++ ys
 
 -- フィールドの指定座標を指定の要素に置き換える
 putBlock :: Field -> Block -> Pos -> Field
-putBlock f b p = replace f replaceRow (snd p)
-    where   replaceRow = replace (f !! snd p) b (fst p)
+putBlock f b (x,y) = replace f replaceRow y
+    where   replaceRow = replace (f !! y) b x
 
 
 -- テトリミノをフィールドに反映
 putMino :: TetriMino -> Field -> Field
 putMino m f = foldl (\f x -> putBlock f b x) f s
-    where   p = getMinoPos m
-            s = map (\x -> ((fst x)+(fst p), (snd x)+(snd p))) (getMinoShape m)
+    where   (fx, fy) = getMinoPos m
+            s = map (\(mx, my) -> (mx + fx, my + fy)) (getMinoShape m)
             b = getMinoBlock m
 
 
 -- テトリミノをフィールドから削除
 removeMino :: TetriMino -> Field -> Field
 removeMino m f = foldl (\f x -> putBlock f b x) f s
-    where   p = getMinoPos m
-            s = map (\x -> ((fst x)+(fst p), (snd x)+(snd p))) (getMinoShape m)
+    where   (fx, fy) = getMinoPos m
+            s = map (\(mx, my) -> (mx + fx, my + fy)) (getMinoShape m)
             b = E
 
 
 
 -- フィールドの指定座標に指定されたブロックが存在するか
 checkExistBlock :: Field -> Block -> Pos -> Bool
-checkExistBlock f b p = checkBlock == b
-    where   checkRow = f !! (snd p)
-            checkBlock = checkRow !! (fst p)
+checkExistBlock f b (x,y) = checkBlock == b
+    where   checkRow = f !! y
+            checkBlock = checkRow !! x
 
 
 -- 指定されたテトリミノがフィールドに存在するかどうか
 checkExistMino :: TetriMino -> Field -> Bool
 checkExistMino m f = foldl (\result x -> result && (checkExistBlock f b x)) True s
-    where   p = getMinoPos m
-            s = map (\x -> ((fst x) + (fst p), (snd x) + (snd p))) (getMinoShape m)
+    where   (fx, fy) = getMinoPos m
+            s = map (\(mx, my) -> (mx + fx, my + fy)) (getMinoShape m)
             b = getMinoBlock m
 
 
 -- 指定座標がEmptyかを返す
 isEmptyField :: Pos -> Field -> Bool
-isEmptyField p f
-    | (snd p) < 0 || (snd p) >= (length f) = False
-    | (fst p) < 0 || (fst p) >= (length checkRow) = False
+isEmptyField (x,y) f
+    | y < 0 || y >= (length f) = False
+    | x < 0 || x >= (length checkRow) = False
     | otherwise = E == checkBlock
-    where   checkRow = f !! (snd p)
-            checkBlock = checkRow !! (fst p)
+    where   checkRow = f !! y
+            checkBlock = checkRow !! x
 
 
 -- テトリミノが存在可能かを返す
 canExistMino :: TetriMino -> Field -> Bool
 canExistMino m f = foldl (\result x -> result && (isEmptyField x f)) True s
-    where   p = getMinoPos m
-            s = map (\x -> ((fst x) + (fst p), (snd x) + (snd p))) (getMinoShape m)
+    where   (fx, fy) = getMinoPos m
+            s = map (\(mx, my) -> (mx + fx, my + fy)) (getMinoShape m)
 
 
 
 -- テトリミノを移動する
-moveMino :: TetriMino -> Pos -> Field -> TetriMino
+moveMino :: TetriMino -> Move -> Field -> TetriMino
 moveMino m p f
     | canExistMino newMino f == False = m
     | otherwise = newMino
-    where   newMino = TetriMino (getMinoBlock m) p (getMinoShape m)
+    where   (x, y) = getMinoPos m
+            newMino = case p of
+                LEFT -> m {getMinoPos = (x-1, y)}
+                RIGHT-> m {getMinoPos = (x+1, y)}
+                UP   -> m {getMinoPos = (x, y-1)}
+                DOWN -> m {getMinoPos = (x, y+1)}
+                NONE -> m {getMinoPos = (x, y)}
 
 
--- テトリミノの形を回転させる
-rotateMino :: TetriMino -> Int-> Field -> TetriMino
-rotateMino m d f
+-- テトリミノを回転させる
+rotateMino :: TetriMino -> Field -> TetriMino
+rotateMino m f
     | canExistMino newMino f == False = m
     | otherwise = newMino
-    where   rotMat = [(0,1), (1,0), (0,-1), (-1,0)] !! d
-            rotation p =    let x = fst p; y = snd p; s = fst rotMat; c = snd rotMat
+    where   rot = getMinoRotate m
+            rotMax = getMinoRotateMax m
+            rotDig = if rot + 1 == rotMax
+                        then 4 - rot
+                        else 1
+            newRot = if rot + 1 == rotMax then 0 else rot + 1
+            rotMat = [(0,1), (1,0), (0,-1), (-1,0), (0,1)] !! rotDig
+            rotation p =    let (x,y) = p; (s,c) = rotMat
                             in (x * c + y * s, -x * s + y * c)
             rotatedShape = map rotation (getMinoShape m)
-            newMino = TetriMino (getMinoBlock m) (getMinoPos m) rotatedShape
+            newMino = m {getMinoShape = rotatedShape, getMinoRotate = newRot}
+
+
 
 
