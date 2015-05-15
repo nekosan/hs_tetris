@@ -70,4 +70,65 @@ putMino m f = foldl (\f x -> putBlock f b x) f s
             b = getMinoBlock m
 
 
+-- テトリミノをフィールドから削除
+removeMino :: TetriMino -> Field -> Field
+removeMino m f = foldl (\f x -> putBlock f b x) f s
+    where   p = getMinoPos m
+            s = map (\x -> ((fst x)+(fst p), (snd x)+(snd p))) (getMinoShape m)
+            b = E
+
+
+
+-- フィールドの指定座標に指定されたブロックが存在するか
+checkExistBlock :: Field -> Block -> Pos -> Bool
+checkExistBlock f b p = checkBlock == b
+    where   checkRow = f !! (snd p)
+            checkBlock = checkRow !! (fst p)
+
+
+-- 指定されたテトリミノがフィールドに存在するかどうか
+checkExistMino :: TetriMino -> Field -> Bool
+checkExistMino m f = foldl (\result x -> result && (checkExistBlock f b x)) True s
+    where   p = getMinoPos m
+            s = map (\x -> ((fst x) + (fst p), (snd x) + (snd p))) (getMinoShape m)
+            b = getMinoBlock m
+
+
+-- 指定座標がEmptyかを返す
+isEmptyField :: Pos -> Field -> Bool
+isEmptyField p f
+    | (snd p) < 0 || (snd p) >= (length f) = False
+    | (fst p) < 0 || (fst p) >= (length checkRow) = False
+    | otherwise = E == checkBlock
+    where   checkRow = f !! (snd p)
+            checkBlock = checkRow !! (fst p)
+
+
+-- テトリミノが存在可能かを返す
+canExistMino :: TetriMino -> Field -> Bool
+canExistMino m f = foldl (\result x -> result && (isEmptyField x f)) True s
+    where   p = getMinoPos m
+            s = map (\x -> ((fst x) + (fst p), (snd x) + (snd p))) (getMinoShape m)
+
+
+
+-- テトリミノを移動する
+moveMino :: TetriMino -> Pos -> Field -> TetriMino
+moveMino m p f
+    | canExistMino newMino f == False = m
+    | otherwise = newMino
+    where   newMino = TetriMino (getMinoBlock m) p (getMinoShape m)
+
+
+-- テトリミノの形を回転させる
+rotateMino :: TetriMino -> Int-> Field -> TetriMino
+rotateMino m d f
+    | canExistMino newMino f == False = m
+    | otherwise = newMino
+    where   rotMat = [(0,1), (1,0), (0,-1), (-1,0)] !! d
+            rotation p =    let x = fst p; y = snd p; s = fst rotMat; c = snd rotMat
+                            in (x * c + y * s, -x * s + y * c)
+            rotatedShape = map rotation (getMinoShape m)
+            newMino = TetriMino (getMinoBlock m) (getMinoPos m) rotatedShape
+
 
